@@ -6,7 +6,7 @@ library(shinyWidgets)
 library(ggplot2)
 library(dplyr)
 
-data <- read.csv('final_data.csv')
+data <- read.csv('final_data2.csv')
 data$date<-as.Date(data$date)
 min_date <- as.Date("2014-09-02")
 max_date <- as.Date("2017-05-12")
@@ -19,7 +19,6 @@ ui <- fluidPage(
    
    titlePanel("Swipes at Val"),
    h6("Final Project for S230 by Rana Barghout, Alex Liu, Daniel Njoo"),
-   hr(),
    
    # sidebar layout is a common design pattern and is the default if you start a new Shiny app
    sidebarLayout(
@@ -28,6 +27,9 @@ ui <- fluidPage(
          h4("Choose start and end dates (in weeks)"),
          sliderInput("start", "Start date:", min = 1, max = 140, value = 1),
          sliderInput("end", "End date:", min = 1, max = 141, value = 141),
+         hr(),
+         h4("Show predictions?"),
+         materialSwitch(inputId = "pred", label = "Yes", right = T, status = "primary"),
          hr(),
          h4("Choose a meal"),
          pickerInput(
@@ -67,32 +69,45 @@ server <- function(input, output, session) {
    output$distPlot <- renderPlot(height=580,{
 
     # check what meal type 
+     meal <- " (All meals)"
      if(!is.null(input$type)){
       if(input$type=="Breakfast"){
          data<-data %>% filter(type=="Breakfast")
+         meal <- " (Breakfast only)"
        }
        else if(input$type=="Lunch"){
          data<-data %>% filter(type=="Lunch")
+         meal <- " (Lunch only)"
        }
        else if(input$type=="Dinner"){
          data<-data %>% filter(type=="Dinner")
+         meal <- "(Dinner only)"
        }
      }
+     
+     
 
-    # create base ggplot plot based on start/end parameters
-     data %>% filter(date>min_date+input$start*7 & date<=min_date+input$end*7) %>% 
+    # subset
+     data <- data %>% filter(date>min_date+input$start*7 & date<=min_date+input$end*7)
+     
+   # create base ggplot plot based on start/end parameters
+     data %>% 
        ggplot(aes(date,count)) +
-       theme(axis.text.x = element_text(angle=45,hjust=1,size=15)) +
-       theme(axis.text.y = element_text(size=15)) +
+       theme(axis.text.x = element_text(angle=45,hjust=1,size=15), 
+             axis.text.y = element_text(size=15),
+             plot.title = element_text(size=18, family="Comic Sans MS")) +
        xlab("Date") -> g
+     
+     title <- "Swipes Over Time"
      
      # check for events
      if(isTRUE(input$events)){
        g <- g + geom_point(aes(col=event))
+       title <- "Swipes Over Time Vs. Events"
      }
+     
      # check for menu
      else if(isTRUE(input$menu)){
-       
        #but only show top 6 categories 
        data %>%
          group_by(tag66) %>%
@@ -107,13 +122,22 @@ server <- function(input, output, session) {
        g <- g + 
          geom_point(data=data, aes(col=Meal)) + 
          scale_color_discrete(breaks=list)
+       
+       title <- "Swipes Over Time Vs. Menu"
        }
      else{
        g <- g + 
          geom_line()
      }
+     
      #display
-     g
+     
+     if(isTRUE(input$pred)){
+       g <- g + geom_line(aes(as.Date(date), pred,col="red"))
+       title <- "Swipes Over Time - With Predictions"
+     }
+     
+     g + ggtitle(paste0(title, meal))
    })
 }
 
